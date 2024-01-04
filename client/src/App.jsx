@@ -1,7 +1,5 @@
-import Register from "./Register"
 import axios from "axios"
-import { UserContext, UserContextProvider } from "./context/UserContext"
-import { useContext } from "react"
+import { UserContextProvider } from "./context/UserContext"
 import Routes from "./Routes"
 function App() {
   axios.defaults.baseURL='http://localhost:4000'
