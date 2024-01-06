@@ -13,7 +13,7 @@ const Chat = () => {
     const [messages, setMessages] = useState([])
     const [offlinePeople, setOfflinePeople] = useState({})
     const divUnderMessages = useRef()
-    const { username, id } = useContext(UserContext)
+    const { username, id, setId, setUsername } = useContext(UserContext)
     useEffect(() => {
         connectToWs()
     }, [])
@@ -25,7 +25,6 @@ const Chat = () => {
                 offlinePeople[p._id] = p
             })
             setOfflinePeople(offlinePeople)
-            console.log(offlinePeople)
         })
     }, [onlinePeople])
     function connectToWs() {
@@ -34,7 +33,6 @@ const Chat = () => {
         ws.addEventListener('message', handleMessage)
         ws.addEventListener('close', () => {
             setTimeout(() => {
-                console.log('Disconnected, Trying to reconnect')
                 connectToWs()
             }, 1000)
         })
@@ -52,18 +50,47 @@ const Chat = () => {
             showOnlinePeople(messageData.online)
         }
         else if ('text' in messageData) {
-            setMessages(prev => [...prev, { ...messageData }])
+            if(messageData.sender===selectedUserId){
+                setMessages(prev => [...prev, { ...messageData }])
+            }
         }
     }
-    function sendMessage(e) {
-        e.preventDefault()
+    function sendMessage(e, file = null) {
+        if (e) e.preventDefault()
         ws.send(JSON.stringify({
             recipient: selectedUserId,
-            text: newmessage
+            text: newmessage,
+            file
         }))
-        setNewMessage('')
-        setMessages(prev => ([...prev, { text: newmessage, sender: id, recipient: selectedUserId, _id: Date.now() }]))
+        if(file){
+            axios.get('/messages/'+selectedUserId).then(res=>{
+                setMessages(res.data)
+            })
+        }
+        else{
+            setNewMessage('')
+            setMessages(prev => ([...prev, { text: newmessage, sender: id, recipient: selectedUserId, _id: Date.now() }]))
+        }
     }
+
+    function logout(e) {
+        axios.post('/logout').then(() => {
+            setWs(null)
+            setId(null)
+            setUsername(null)
+        })
+    }
+    function sendFile(e) {
+        const reader = new FileReader()
+        reader.readAsDataURL(e.target.files[0])
+        reader.onload = () => {
+            sendMessage(null, {
+                info: e.target.files[0].name,
+                data: reader.result
+            })
+        }
+    }
+
     useEffect(() => {
         const div = divUnderMessages.current;
         if (div)
@@ -85,26 +112,37 @@ const Chat = () => {
 
     return (
         <div className='flex h-screen'>
-            <div className="bg-white-100 w-1/3 font-bold" >
-                <Logo></Logo>
-                {Object.keys(onlinePeopleExclUser).map(userId => (
-                    <Contact
-                        key={userId}
-                        id={userId}
-                        online={true}
-                        username={onlinePeopleExclUser[userId]}
-                        onClick={() => { setSelectedUserId(userId); console.log({ userId }) }}
-                        selected={userId === selectedUserId} />
-                ))}
-                {Object.keys(offlinePeople).map(userId => (
-                    <Contact
-                        key={userId}
-                        id={userId}
-                        online={false}
-                        username={offlinePeople[userId].username}
-                        onClick={() => setSelectedUserId(userId)}
-                        selected={userId === selectedUserId} />
-                ))}
+            <div className="bg-white-100 w-1/3 font-bold flex flex-col" >
+                <div className='flex-grow'>
+                    <Logo></Logo>
+                    {Object.keys(onlinePeopleExclUser).map(userId => (
+                        <Contact
+                            key={userId}
+                            id={userId}
+                            online={true}
+                            username={onlinePeopleExclUser[userId]}
+                            onClick={() => { setSelectedUserId(userId); console.log({ userId }) }}
+                            selected={userId === selectedUserId} />
+                    ))}
+                    {Object.keys(offlinePeople).map(userId => (
+                        <Contact
+                            key={userId}
+                            id={userId}
+                            online={false}
+                            username={offlinePeople[userId].username}
+                            onClick={() => setSelectedUserId(userId)}
+                            selected={userId === selectedUserId} />
+                    ))}
+                </div>
+                <div className='p-2 text-center flex'>
+                    <span className='mr-6 text-sm text-gray-600 flex items-center'>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                            <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
+                        </svg>
+
+                        {username} </span>
+                    <button onClick={logout} className="text-sm text-gray-600 bg-blue-200 py-1 px-2 border rounded-md">Logout</button>
+                </div>
             </div>
             <div className="flex flex-col bg-blue-50 w-2/3 p-2">
                 <div className='flex-grow'>
@@ -120,6 +158,16 @@ const Chat = () => {
                                     <div key={message._id} className={(message.sender === id ? 'text-right' : 'text-left')}>
                                         <div className={"text-left inline-block p-2 my-2 rounded-md text-sm " + (message.sender === id ? 'bg-blue-500 text-white' : 'bg-white text-gray-500')}>
                                             {message.text}
+                                            {message.file && (
+                                                <div className=''>
+                                                    <a target="/" className='flex items-center gap-1 border-b' href={axios.defaults.baseURL + '/uploads/' + message.file}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                                        <path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 0 0-3.182 0l-10.94 10.94a3.75 3.75 0 1 0 5.304 5.303l7.693-7.693a.75.75 0 0 1 1.06 1.06l-7.693 7.693a5.25 5.25 0 1 1-7.424-7.424l10.939-10.94a3.75 3.75 0 1 1 5.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 0 1 5.91 15.66l7.81-7.81a.75.75 0 0 1 1.061 1.06l-7.81 7.81a.75.75 0 0 0 1.054 1.068L18.97 6.84a2.25 2.25 0 0 0 0-3.182Z" clipRule="evenodd" />
+                                                    </svg>
+                                                        {message.file}
+                                                    </a>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -135,7 +183,14 @@ const Chat = () => {
                             onChange={e => setNewMessage(e.target.value)}
                             placeholder='Type Your Message Here'
                             className='flex-grow bg-white border rounded-sm p-2' />
-                        <button className='bg-blue-500 p-2 text-white border rounded-sm'>
+                        <label type="button" className='bg-gray-500 p-2 text-white border rounded-md'>
+                            <input type="file" className="hidden" onChange={sendFile} />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                                <path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 0 0-3.182 0l-10.94 10.94a3.75 3.75 0 1 0 5.304 5.303l7.693-7.693a.75.75 0 0 1 1.06 1.06l-7.693 7.693a5.25 5.25 0 1 1-7.424-7.424l10.939-10.94a3.75 3.75 0 1 1 5.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 0 1 5.91 15.66l7.81-7.81a.75.75 0 0 1 1.061 1.06l-7.81 7.81a.75.75 0 0 0 1.054 1.068L18.97 6.84a2.25 2.25 0 0 0 0-3.182Z" clipRule="evenodd" />
+                            </svg>
+
+                        </label>
+                        <button className='bg-blue-500 p-2 text-white border rounded-md'>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
                             </svg>
