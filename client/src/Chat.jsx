@@ -56,18 +56,13 @@ const Chat = () => {
         }
     }
     function sendMessage(e, file = null) {
-        if (e) e.preventDefault()
+        if(e) e.preventDefault()
         ws.send(JSON.stringify({
             recipient: selectedUserId,
             text: newmessage,
             file
         }))
-        if(file){
-            axios.get('/messages/'+selectedUserId).then(res=>{
-                setMessages(res.data)
-            })
-        }
-        else{
+        if(!file){
             setNewMessage('')
             setMessages(prev => ([...prev, { text: newmessage, sender: id, recipient: selectedUserId, _id: Date.now() }]))
         }
@@ -84,10 +79,14 @@ const Chat = () => {
         const reader = new FileReader()
         reader.readAsDataURL(e.target.files[0])
         reader.onload = () => {
+            const parts=e.target.files[0].name.split('.')
+            const ext=parts[parts.length-1]
+            const name=Date.now()+'.'+ext
             sendMessage(null, {
-                info: e.target.files[0].name,
+                info: name,
                 data: reader.result
             })
+            setMessages(prev=>([...prev,{file:name,sender:id,recipient:selectedUserId,_id:Date.now()}]))
         }
     }
 

@@ -161,13 +161,10 @@ wss.on('connection', (connection, req) => {
         const {recipient,text,file}=messageData
         let filename=null
         if(file){
-            const parts=file.info.split('.')
-            const ext=parts[parts.length-1]
-            filename=Date.now()+'.'+ext
+            filename=file.info
             const path=(__dirname+'/uploads/'+filename)
             const bufferData=new Buffer.from(file.data.split(',')[1],'base64')
             fs.writeFile(path,bufferData,()=>{
-                console.log('file Saved',path)
             })
         }
         if(recipient && (text||file)){
